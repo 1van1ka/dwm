@@ -2,6 +2,7 @@
 #include <X11/XF86keysym.h>
 
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
+static const unsigned int cornerrad      = 8;
 static const unsigned int border         = 0;   /* always display border: 1, auto display: 0 */
 static const unsigned int snap           = 30;  /* snap pixel */
 static const unsigned int gappih         = 10;  /* horiz inner gap between windows */
