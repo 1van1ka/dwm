@@ -2,16 +2,15 @@
 #include <X11/XF86keysym.h>
 
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
-static const unsigned int cornerrad      = 8;
 static const unsigned int border         = 0;   /* always display border: 1, auto display: 0 */
+static const unsigned int smartgaps_fact = 0;   /* gap factor when there is only one client; 0 = no gaps, 3 = 3x outer gaps */
 static const unsigned int snap           = 30;  /* snap pixel */
 static const unsigned int gappih         = 10;  /* horiz inner gap between windows */
 static const unsigned int gappiv         = 10;  /* vert inner gap between windows */
-static const unsigned int gappoh         = 4;  /* horiz outer gap between windows and screen edge */
+static const unsigned int gappoh         = 5;  /* horiz outer gap between windows and screen edge */
 static const unsigned int gappov         = 5;  /* vert outer gap between windows and screen edge */
 
 /* bar settings */
-static const int smartgaps_fact          = 0;   /* gap factor when there is only one client; 0 = no gaps, 3 = 3x outer gaps */
 static const int showbar                 = 1;   /* 0 means no bar */
 static const int topbar                  = 1;   /* 0 means bottom bar */
 static const int topline                 = 1;   /* 0 means bottom line active window */
@@ -27,7 +26,7 @@ static const int showsystray             = 1;   /* 0 means no systray */
 static const float mfact                 = 0.55;  /* factor of master area size [0.05..0.95] */
 static const int nmaster                 = 1;    /* number of clients in master area */
 static const int resizehints             = 0;    /* 1 means respect size hints in tiled resizals */
-static const int lockfullscreen          = 0;    /* 1 will force focus on the fullscreen window */
+static const int lockfullscreen          = 1;    /* 1 will force focus on the fullscreen window */
 
 static int tagindicatortype              = INDICATOR_TOP_LEFT_SQUARE;
 static int tiledindicatortype            = INDICATOR_NONE;
@@ -124,9 +123,9 @@ static IPCCommand ipccommands[] = {
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-#define TERMINAL "alacritty"
+#define TERM "alacritty"
 static const char *dmenucmd[] = { "dmenu_run", NULL };
-static const char *spcmd1[] = { TERMINAL, "--class", "spterm", NULL };
+static const char *spcmd1[] = { TERM, "--class", "spterm", NULL };
 
 static Sp scratchpads[] = {
 	/* name          cmd  */
@@ -136,12 +135,12 @@ static Sp scratchpads[] = {
 
 static const Key keys[] = {
   /* modifier                     key            function                argument */
-  { MODKEY,                       XK_Escape,     spawn,                  {.v = (const char*[]){ TERMINAL, "--class", "resources", "-e", "btop", NULL } } },
+  { MODKEY,                       XK_Escape,     spawn,                  {.v = (const char*[]){ TERM, "--class", "resources", "-e", "btop", NULL } } },
   { MODKEY|Mod1Mask,              XK_0,          togglescratch,          {.ui = 0 } },
 	{ Mod1Mask|ShiftMask,           XK_space,      spawn,                  {.v = dmenucmd } },
 	{ Mod1Mask,                     XK_space,      spawn,                  {.v = (const char*[]){ "dmenu_drun", NULL } } },
-	{ MODKEY|ShiftMask,             XK_Return,     spawn,                  {.v = (const char*[]){ TERMINAL, NULL } } },
-  { MODKEY,                       XK_a,          spawn,                  {.v = (const char*[]){ "sh", "-c", "controlcenter &" } } },
+	{ MODKEY|ShiftMask,             XK_Return,     spawn,                  {.v = (const char*[]){ TERM, NULL } } },
+  { MODKEY,                       XK_a,          spawn,                  {.v = (const char*[]){ "controlcenter" } } },
 	{ MODKEY,                       XK_b,          togglebar,              {0} },
 	{ MODKEY,                       XK_j,          focusstack,             {.i = +1 } },
 	{ MODKEY,                       XK_k,          focusstack,             {.i = -1 } },
@@ -223,7 +222,7 @@ static const Button buttons[] = {
 	/* click                event mask           button          function        argument */
 	{ ClkLogo,              0,                   Button1,        spawn,          {.v = (const char*[]){ "dmenu_drun", NULL } } },
 	{ ClkLogo,              0,                   Button3,        spawn,          {.v = (const char*[]){ "powermenu" } } },
-	{ ClkLogo,              MODKEY,              Button1,        spawn,          {.v = (const char*[]){ TERMINAL, NULL } } },
+	{ ClkLogo,              MODKEY,              Button1,        spawn,          {.v = (const char*[]){ TERM, NULL } } },
 	{ ClkLtSymbol,          0,                   Button1,        spawn,          {.v = (const char*[]){ "controlcenter" } } },
 
 	{ ClkWinTitle,          0,                   Button1,        togglewin,      {0} },
