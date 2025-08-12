@@ -39,7 +39,6 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
-#include <X11/extensions/shape.h>
 
 #include "drw.h"
 #include "util.h"
@@ -351,7 +350,6 @@ static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
-static void roundcorners(Client *c);
 static void run(void);
 static void scan(void);
 static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2,
@@ -600,9 +598,6 @@ void arrangemon(Monitor *m) {
   strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
   if (m->lt[m->sellt]->arrange)
     m->lt[m->sellt]->arrange(m);
-
-  for (Client *c = m->clients; c; c = c->next)
-    roundcorners(c);
 }
 
 void attach(Client *c) {
@@ -1990,7 +1985,6 @@ void resizeclient(Client *c, int x, int y, int w, int h) {
   XConfigureWindow(dpy, c->win, CWX | CWY | CWWidth | CWHeight | CWBorderWidth,
                    &wc);
   configure(c);
-  roundcorners(c);
   XSync(dpy, False);
 }
 
@@ -2091,60 +2085,6 @@ void restack(Monitor *m) {
   XSync(dpy, False);
   while (XCheckMaskEvent(dpy, EnterWindowMask, &ev))
     ;
-}
-
-void roundcorners(Client *c) {
-  XWindowAttributes wa;
-  XGetWindowAttributes(dpy, c->win, &wa);
-
-  // If this returns null, the window is invalid.
-  if (!XGetWindowAttributes(dpy, c->win, &wa))
-    return;
-
-  Client *cc;
-  int n = 0;
-  for (cc = selmon->clients; cc; cc = cc->next)
-    if (ISVISIBLE(cc))
-      n++;
-
-  int width = wa.width + 2 * c->bw;
-  int height = wa.height + 2 * c->bw;
-  int rad = ((n == 1 && !c->isfloating) || c->isfullscreen ||
-             !selmon->pertag->enablegaps[selmon->pertag->curtag])
-                ? 0
-                : cornerrad;
-  int dia = 2 * rad;
-
-  // do not try to round if the window would be smaller than the corners
-  if (width < dia || height < dia)
-    return;
-
-  Pixmap mask = XCreatePixmap(dpy, c->win, width, height, 1);
-  // if this returns null, the mask is not drawable
-  if (!mask)
-    return;
-
-  XGCValues xgcv;
-  GC shape_gc = XCreateGC(dpy, mask, 0, &xgcv);
-  if (!shape_gc) {
-    XFreePixmap(dpy, mask);
-    return;
-  }
-
-  XSetForeground(dpy, shape_gc, 0);
-  XFillRectangle(dpy, mask, shape_gc, 0, 0, width, height);
-  XSetForeground(dpy, shape_gc, 1);
-  XFillArc(dpy, mask, shape_gc, 0, 0, dia, dia, 5760, 5760);
-  XFillArc(dpy, mask, shape_gc, width - dia, 0, dia, dia, 0, 5760);
-  XFillArc(dpy, mask, shape_gc, 0, height - dia, dia, dia, 11520, 5760);
-  XFillArc(dpy, mask, shape_gc, width - dia, height - dia, dia, dia, 17280,
-           5760);
-  XFillRectangle(dpy, mask, shape_gc, rad, 0, width - dia, height);
-  XFillRectangle(dpy, mask, shape_gc, 0, rad, width, height - dia);
-  XShapeCombineMask(dpy, c->win, ShapeBounding, 0 - c->bw, 0 - c->bw, mask,
-                    ShapeSet);
-  XFreePixmap(dpy, mask);
-  XFreeGC(dpy, shape_gc);
 }
 
 void run(void) {
@@ -2431,7 +2371,7 @@ void setup(void) {
 
   grabkeys();
   focus(NULL);
-	setupepoll();
+  setupepoll();
 }
 
 void seturgent(Client *c, int urg) {
@@ -2860,18 +2800,18 @@ void updatestatus(void) {
 }
 
 void updatetitle(Client *c) {
-	char oldname[sizeof(c->name)];
-	strcpy(oldname, c->name);
+  char oldname[sizeof(c->name)];
+  strcpy(oldname, c->name);
 
   if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
     gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
   if (c->name[0] == '\0') /* hack to mark broken clients */
     strcpy(c->name, broken);
 
-	for (Monitor *m = mons; m; m = m->next) {
-		if (m->sel == c && strcmp(oldname, c->name) != 0)
-			ipc_focused_title_change_event(m->num, c->win, oldname, c->name);
-	}
+  for (Monitor *m = mons; m; m = m->next) {
+    if (m->sel == c && strcmp(oldname, c->name) != 0)
+      ipc_focused_title_change_event(m->num, c->win, oldname, c->name);
+  }
 }
 
 void updatewmhints(Client *c) {
@@ -2904,6 +2844,7 @@ void view(const Arg *arg) {
   selmon->seltags ^= 1; /* toggle sel tagset */
   if (arg->ui & TAGMASK)
     selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+  pertagview(arg);
   arrange(selmon);
   focus(NULL);
 }
