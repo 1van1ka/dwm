@@ -142,10 +142,24 @@ enum {
   BAR_ALIGN_RIGHT_CENTER,
   BAR_ALIGN_LAST
 }; /* bar alignment */
+
 enum { WIN_NW, WIN_N, WIN_NE, WIN_W, WIN_C, WIN_E, WIN_SW, WIN_S, WIN_SE };
+
+typedef struct TagState TagState;
+struct TagState {
+  int selected;
+  int occupied;
+  int urgent;
+};
+
+typedef struct ClientState ClientState;
+struct ClientState {
+  int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
+};
+
 typedef union {
-  int i;
-  unsigned int ui;
+  long i;
+  unsigned long ui;
   float f;
   const void *v;
 } Arg;
@@ -213,6 +227,7 @@ struct Client {
   Client *snext;
   Monitor *mon;
   Window win;
+  ClientState prevstate;
 };
 
 typedef struct {
@@ -250,6 +265,10 @@ struct Monitor {
   Bar *bar;
   const Layout *lt[2];
   Pertag *pertag;
+  char lastltsymbol[16];
+  TagState tagstate;
+  Client *lastsel;
+  const Layout *lastlt;
 };
 
 typedef struct {
@@ -792,6 +811,11 @@ void cleanup(void) {
   XSync(dpy, False);
   XSetInputFocus(dpy, PointerRoot, RevertToPointerRoot, CurrentTime);
   XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
+
+  ipc_cleanup();
+
+  if (close(epoll_fd) < 0)
+    fprintf(stderr, "Failed to close epoll file descriptor\n");
 }
 
 void cleanupmon(Monitor *mon) {
@@ -1394,7 +1418,7 @@ void focusviadmenu(const Arg *arg) {
     }
   }
 
-  strcat(dmenu_cmd, "\" | dmenu -c -l 15 -i -p 'Switch to window:'");
+  strcat(dmenu_cmd, "\" | dmenu -mw 850 -c -l 15 -i -p 'Switch to window:'");
 
   if (!(fp = popen(dmenu_cmd, "r")))
     return;
@@ -1966,6 +1990,7 @@ void resizeclient(Client *c, int x, int y, int w, int h) {
   XConfigureWindow(dpy, c->win, CWX | CWY | CWWidth | CWHeight | CWBorderWidth,
                    &wc);
   configure(c);
+  roundcorners(c);
   XSync(dpy, False);
 }
 
@@ -2123,24 +2148,39 @@ void roundcorners(Client *c) {
 }
 
 void run(void) {
-  XEvent ev;
+  int event_count = 0;
+  const int MAX_EVENTS = 10;
+  struct epoll_event events[MAX_EVENTS];
+
   XSync(dpy, False);
+
   /* main event loop */
   while (running) {
-    struct pollfd pfd = {
-        .fd = ConnectionNumber(dpy),
-        .events = POLLIN,
-    };
-    int pending = XPending(dpy) > 0 || poll(&pfd, 1, -1) > 0;
+    event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 
-    if (!running)
-      break;
-    if (!pending)
-      continue;
+    for (int i = 0; i < event_count; i++) {
+      int event_fd = events[i].data.fd;
+      DEBUG("Got event from fd %d\n", event_fd);
 
-    XNextEvent(dpy, &ev);
-    if (handler[ev.type])
-      handler[ev.type](&ev); /* call handler */
+      if (event_fd == dpy_fd) {
+        // -1 means EPOLLHUP
+        if (handlexevent(events + i) == -1)
+          return;
+      } else if (event_fd == ipc_get_sock_fd()) {
+        ipc_handle_socket_epoll_event(events + i);
+      } else if (ipc_is_client_registered(event_fd)) {
+        if (ipc_handle_client_epoll_event(events + i, mons, &lastselmon, selmon,
+                                          NUMTAGS, layouts,
+                                          LENGTH(layouts)) < 0) {
+          fprintf(stderr, "Error handling IPC event on fd %d\n", event_fd);
+        }
+      } else {
+        fprintf(stderr, "Got event from unknown fd %d, ptr %p, u32 %d, u64 %lu",
+                event_fd, events[i].data.ptr, events[i].data.u32,
+                events[i].data.u64);
+        fprintf(stderr, " with events %d\n", events[i].events);
+      }
+    }
   }
 }
 
@@ -2391,6 +2431,7 @@ void setup(void) {
 
   grabkeys();
   focus(NULL);
+	setupepoll();
 }
 
 void seturgent(Client *c, int urg) {
@@ -2819,11 +2860,18 @@ void updatestatus(void) {
 }
 
 void updatetitle(Client *c) {
+	char oldname[sizeof(c->name)];
+	strcpy(oldname, c->name);
 
   if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
     gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
   if (c->name[0] == '\0') /* hack to mark broken clients */
     strcpy(c->name, broken);
+
+	for (Monitor *m = mons; m; m = m->next) {
+		if (m->sel == c && strcmp(oldname, c->name) != 0)
+			ipc_focused_title_change_event(m->num, c->win, oldname, c->name);
+	}
 }
 
 void updatewmhints(Client *c) {
