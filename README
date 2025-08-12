@@ -2,6 +2,7 @@ dwm - dynamic window manager
 ============================
 dwm is an extremely fast, small, and dynamic window manager for X.
 
+[My plans](./plan.md)
 
 Requirements
 ------------
@@ -40,7 +41,9 @@ like this in your .xinitrc:
     	sleep 1
     done &
     exec dwm
-
+or 
+    dwmblocks &
+    exec dwm
 
 Configuration
 -------------

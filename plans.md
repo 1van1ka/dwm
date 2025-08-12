@@ -7,5 +7,5 @@ Expand
 - [ ] ~~Support for **Wayland**~~ (not planned)
 
 ### Fix bugs
-- [ ] Overlay panel rendering
-- [x] Apply layout to all tags
+- 1. [ ] Overlay panel rendering
+- 2. [x] Apply layout to all tags
