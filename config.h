@@ -132,6 +132,14 @@ static Sp scratchpads[] = {
 	{"spterm",      spcmd1},
 };
 
+static const char *const autostart[] = {
+	"clipmenud", NULL,
+  "dwmblocks", NULL,
+  "dunst", NULL,
+  "redshift", NULL,
+  "remind -z -k'notify-send -a \"Remind|Напоминание\" -t 15000 \"$(echo \"%s\" | sed \"s/\\\//g\")\"' ~/.reminders", NULL,
+	NULL /* terminate */
+};
 
 static const Key keys[] = {
   /* modifier                     key            function                argument */

@@ -300,6 +300,7 @@ static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
+static void autostart_exec(void);
 static void buttonpress(XEvent *e);
 static void centeredmaster(Monitor *m);
 static void checkotherwm(void);
@@ -362,6 +363,7 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
+static void sigchld(int unused);
 static void showhide(Client *c);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
@@ -399,6 +401,8 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[512];
+static pid_t *autostart_pids;
+static size_t autostart_len;
 
 static int screen;
 static int sw, sh; /* X display screen geometry width, height */
@@ -610,6 +614,34 @@ void attachstack(Client *c) {
   c->mon->stack = c;
 }
 
+/* execute command from autostart array */
+void autostart_exec(void) {
+  const char *const *p;
+  struct sigaction sa;
+  size_t i = 0;
+
+  for (p = autostart; *p; autostart_len++, p++)
+    while (*++p)
+      ;
+
+  autostart_pids = malloc(autostart_len * sizeof(pid_t));
+  for (p = autostart; *p; i++, p++) {
+    if ((autostart_pids[i] = fork()) == 0) {
+      setsid(); /* Restore SIGCHLD sighandler to default before spawning a
+                   program */
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = 0;
+      sa.sa_handler = SIG_DFL;
+      sigaction(SIGCHLD, &sa, NULL);
+      execvp(*p, (char *const *)p);
+      fprintf(stderr, "dwm: execvp %s\n", *p);
+      perror(" failed");
+      _exit(EXIT_FAILURE);
+    } /* skip arguments */
+    while (*++p)
+      ;
+  }
+}
 void buttonpress(XEvent *e) {
   int click, i, r;
   Arg arg = {0};
@@ -619,15 +651,12 @@ void buttonpress(XEvent *e) {
   XButtonPressedEvent *ev = &e->xbutton;
   const BarRule *br;
   BarArg carg = {0, 0, 0, 0};
-  click = ClkRootWin;
-
-  /* focus monitor if necessary */
+  click = ClkRootWin; /* focus monitor if necessary */
   if ((m = wintomon(ev->window)) && m != selmon) {
     unfocus(selmon->sel, 1, NULL);
     selmon = m;
     focus(NULL);
   }
-
   for (bar = selmon->bar; bar; bar = bar->next) {
     if (ev->window == bar->win) {
       for (r = 0; r < LENGTH(barrules); r++) {
@@ -652,14 +681,12 @@ void buttonpress(XEvent *e) {
       break;
     }
   }
-
   if (click == ClkRootWin && (c = wintoclient(ev->window))) {
     focus(c);
     restack(selmon);
     XAllowEvents(dpy, ReplayPointer, CurrentTime);
     click = ClkClientWin;
   }
-
   for (i = 0; i < LENGTH(buttons); i++) {
     if (click == buttons[i].click && buttons[i].func &&
         buttons[i].button == ev->button &&
@@ -671,7 +698,6 @@ void buttonpress(XEvent *e) {
     }
   }
 }
-
 void centeredmaster(Monitor *m) {
   unsigned int i, n;
   int mx = 0, my = 0, mh = 0, mw = 0;
@@ -776,6 +802,14 @@ void cleanup(void) {
   Monitor *m;
   Layout foo = {"", NULL};
   size_t i;
+
+  /* kill child processes */
+  for (i = 0; i < autostart_len; i++) {
+    if (0 < autostart_pids[i]) {
+      kill(autostart_pids[i], SIGTERM);
+      waitpid(autostart_pids[i], NULL, 0);
+    }
+  }
 
   for (m = mons; m; m = m->next)
     persistmonitorstate(m);
@@ -2277,17 +2311,9 @@ void setup(void) {
   int i;
   XSetWindowAttributes wa;
   Atom utf8string;
-  struct sigaction sa;
 
-  /* do not transform children into zombies when they terminate */
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART;
-  sa.sa_handler = SIG_IGN;
-  sigaction(SIGCHLD, &sa, NULL);
-
-  /* clean up any zombies (inherited from .xinitrc etc) immediately */
-  while (waitpid(-1, NULL, WNOHANG) > 0)
-    ;
+  /* clean up any zombies immediately */
+  sigchld(0);
 
   signal(SIGHUP, sighup);
   signal(SIGTERM, sigterm);
@@ -2383,6 +2409,28 @@ void seturgent(Client *c, int urg) {
   wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
   XSetWMHints(dpy, c->win, wmh);
   XFree(wmh);
+}
+
+void sigchld(int unused) {
+  pid_t pid;
+
+  if (signal(SIGCHLD, sigchld) == SIG_ERR)
+    die("can't install SIGCHLD handler:");
+
+  while (0 < (pid = waitpid(-1, NULL, WNOHANG))) {
+    pid_t *p, *lim;
+
+    if (!(p = autostart_pids))
+      continue;
+    lim = &p[autostart_len];
+
+    for (; p < lim; p++) {
+      if (*p == pid) {
+        *p = -1;
+        break;
+      }
+    }
+  }
 }
 
 void showhide(Client *c) {
@@ -2931,6 +2979,7 @@ int main(int argc, char *argv[]) {
   if (!(dpy = XOpenDisplay(NULL)))
     die("dwm: cannot open display");
   checkotherwm();
+  autostart_exec();
   setup();
 #ifdef __OpenBSD__
   if (pledge("stdio rpath proc exec", NULL) == -1)

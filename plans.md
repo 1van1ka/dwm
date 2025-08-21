@@ -1,5 +1,5 @@
 ### Future plans:
-- [ ] Support autostart and autostop of applications
+- [x] Support autostart and autostop of applications
 - [ ] Support resizing from any corner
 - [ ] GUI settings app for dwm
 - [ ] ~~Support cairo~~ (no minimal)
