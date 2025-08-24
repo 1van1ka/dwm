@@ -1,5 +1,6 @@
 #include <X11/X.h>
 #include <X11/XF86keysym.h>
+#include <unistd.h>
 
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
 static const unsigned int border         = 0;   /* always display border: 1, auto display: 0 */
@@ -133,12 +134,12 @@ static Sp scratchpads[] = {
 };
 
 static const char *const autostart[] = {
-	"clipmenud", NULL,
+  "clipmenud", NULL,
   "dwmblocks", NULL,
   "dunst", NULL,
   "redshift", NULL,
-  "remind -z -k'notify-send -a \"Remind|Напоминание\" -t 15000 \"$(echo \"%s\" | sed \"s/\\\//g\")\"' ~/.reminders", NULL,
-	NULL /* terminate */
+  "remind -z -k'notify-send -a \"Remind|Напоминание\" -t 15000 \"$(echo \"%s\" | sed \"s/\\\\\\//g\")\"' ~/.reminders", NULL,
+	NULL
 };
 
 static const Key keys[] = {

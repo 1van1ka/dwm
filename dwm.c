@@ -26,6 +26,8 @@
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
+#include <ctype.h>
+#include <dirent.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -334,6 +336,7 @@ static void grabkeys(void);
 static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
+static void kill_process(const char *process);
 static void manage(Window w, XWindowAttributes *wa);
 static void mappingnotify(XEvent *e);
 static void maprequest(XEvent *e);
@@ -401,8 +404,8 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[512];
-static pid_t *autostart_pids;
-static size_t autostart_len;
+// static pid_t *autostart_pids;
+// static size_t autostart_len;
 
 static int screen;
 static int sw, sh; /* X display screen geometry width, height */
@@ -616,32 +619,29 @@ void attachstack(Client *c) {
 
 /* execute command from autostart array */
 void autostart_exec(void) {
-  const char *const *p;
   struct sigaction sa;
-  size_t i = 0;
 
-  for (p = autostart; *p; autostart_len++, p++)
-    while (*++p)
-      ;
+  /* Restore SIGCHLD to default before spawning */
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sa.sa_handler = SIG_DFL;
+  sigaction(SIGCHLD, &sa, NULL);
 
-  autostart_pids = malloc(autostart_len * sizeof(pid_t));
-  for (p = autostart; *p; i++, p++) {
-    if ((autostart_pids[i] = fork()) == 0) {
-      setsid(); /* Restore SIGCHLD sighandler to default before spawning a
-                   program */
-      sigemptyset(&sa.sa_mask);
-      sa.sa_flags = 0;
-      sa.sa_handler = SIG_DFL;
-      sigaction(SIGCHLD, &sa, NULL);
+  for (const char *const *p = autostart; *p; p++) {
+    if (fork() == 0) {
+      /* Child process */
+      setsid();
       execvp(*p, (char *const *)p);
       fprintf(stderr, "dwm: execvp %s\n", *p);
       perror(" failed");
       _exit(EXIT_FAILURE);
-    } /* skip arguments */
+    }
+    /* Skip arguments for this command */
     while (*++p)
       ;
   }
 }
+
 void buttonpress(XEvent *e) {
   int click, i, r;
   Arg arg = {0};
@@ -803,12 +803,10 @@ void cleanup(void) {
   Layout foo = {"", NULL};
   size_t i;
 
-  /* kill child processes */
-  for (i = 0; i < autostart_len; i++) {
-    if (0 < autostart_pids[i]) {
-      kill(autostart_pids[i], SIGTERM);
-      waitpid(autostart_pids[i], NULL, 0);
-    }
+  for (const char *const *p = autostart; *p; p++) {
+    kill_process(*p);
+    while (*p++)
+      ;
   }
 
   for (m = mons; m; m = m->next)
@@ -1650,6 +1648,47 @@ void keypress(XEvent *e) {
   XFree(keysym);
 }
 
+void kill_process(const char *process) {
+  DIR *dir;
+  struct dirent *entry;
+
+  if (!(dir = opendir("/proc"))) {
+    perror("opendir /proc");
+    return;
+  }
+
+  while ((entry = readdir(dir)) != NULL) {
+    if (!isdigit(entry->d_name[0]))
+      continue;
+
+    char cmdline_path[512];
+    snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%s/cmdline",
+             entry->d_name);
+
+    FILE *cmdline = fopen(cmdline_path, "r");
+    if (!cmdline)
+      continue;
+
+    char buf[4096];
+    size_t len = fread(buf, 1, sizeof(buf) - 1, cmdline);
+    fclose(cmdline);
+
+    if (len <= 0)
+      continue;
+
+    buf[len] = '\0';
+
+    if (strcmp(buf, process) == 0) {
+      pid_t pid = (pid_t)atoi(entry->d_name);
+      if (pid > 1) {
+        kill(pid, SIGTERM);
+        waitpid(pid, NULL, 0);
+      }
+    }
+  }
+  closedir(dir);
+}
+
 void killclient(const Arg *arg) {
   if (!selmon->sel)
     return;
@@ -2312,9 +2351,7 @@ void setup(void) {
   XSetWindowAttributes wa;
   Atom utf8string;
 
-  /* clean up any zombies immediately */
-  sigchld(0);
-
+  signal(SIGCHLD, sigchld);
   signal(SIGHUP, sighup);
   signal(SIGTERM, sigterm);
 
@@ -2412,25 +2449,8 @@ void seturgent(Client *c, int urg) {
 }
 
 void sigchld(int unused) {
-  pid_t pid;
-
-  if (signal(SIGCHLD, sigchld) == SIG_ERR)
-    die("can't install SIGCHLD handler:");
-
-  while (0 < (pid = waitpid(-1, NULL, WNOHANG))) {
-    pid_t *p, *lim;
-
-    if (!(p = autostart_pids))
-      continue;
-    lim = &p[autostart_len];
-
-    for (; p < lim; p++) {
-      if (*p == pid) {
-        *p = -1;
-        break;
-      }
-    }
-  }
+  while (waitpid(-1, NULL, WNOHANG) > 0)
+    ;
 }
 
 void showhide(Client *c) {
