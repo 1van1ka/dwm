@@ -134,11 +134,11 @@ static Sp scratchpads[] = {
 };
 
 static const char *const autostart[] = {
-  "clipmenud", NULL,
+  "clipnotify", NULL,
   "dwmblocks", NULL,
   "dunst", NULL,
   "redshift", NULL,
-  "remind -z -k'notify-send -a \"Remind|Напоминание\" -t 15000 \"$(echo \"%s\" | sed \"s/\\\\\\//g\")\"' ~/.reminders", NULL,
+  "sh", "-c", "remind -z -k'notify-send -a \"Remind|Напоминание\" -t 15000 \"$(echo \"%s\" | sed \"s/\\\\\\//g\")\"' ~/.reminders", NULL,
 	NULL
 };
 

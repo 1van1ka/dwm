@@ -303,6 +303,7 @@ static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
 static void autostart_exec(void);
+static void autostart_kill(void);
 static void buttonpress(XEvent *e);
 static void centeredmaster(Monitor *m);
 static void checkotherwm(void);
@@ -336,6 +337,7 @@ static void grabkeys(void);
 static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
+static int getpidprocess(const char *process);
 static void kill_process(const char *process);
 static void manage(Window w, XWindowAttributes *wa);
 static void mappingnotify(XEvent *e);
@@ -642,6 +644,17 @@ void autostart_exec(void) {
   }
 }
 
+void autostart_kill(void) {
+  const char *const *p = autostart;
+
+  while (*p) {
+    const char *process = *p;
+    kill_process(process);
+    while (*p++)
+      ;
+  }
+}
+
 void buttonpress(XEvent *e) {
   int click, i, r;
   Arg arg = {0};
@@ -803,11 +816,7 @@ void cleanup(void) {
   Layout foo = {"", NULL};
   size_t i;
 
-  for (const char *const *p = autostart; *p; p++) {
-    kill_process(*p);
-    while (*p++)
-      ;
-  }
+  autostart_kill();
 
   for (m = mons; m; m = m->next)
     persistmonitorstate(m);
@@ -1648,13 +1657,13 @@ void keypress(XEvent *e) {
   XFree(keysym);
 }
 
-void kill_process(const char *process) {
+int getpidprocess(const char *process) {
   DIR *dir;
   struct dirent *entry;
 
   if (!(dir = opendir("/proc"))) {
     perror("opendir /proc");
-    return;
+    return -1;
   }
 
   while ((entry = readdir(dir)) != NULL) {
@@ -1678,15 +1687,33 @@ void kill_process(const char *process) {
 
     buf[len] = '\0';
 
-    if (strcmp(buf, process) == 0) {
-      pid_t pid = (pid_t)atoi(entry->d_name);
-      if (pid > 1) {
-        kill(pid, SIGTERM);
-        waitpid(pid, NULL, 0);
-      }
+    char *exe_name = buf;
+    char *base = strrchr(exe_name, '/');
+    base = base ? base + 1 : exe_name;
+
+    if (strcmp(base, process) == 0) {
+      closedir(dir);
+      return atoi(entry->d_name);
     }
   }
+
   closedir(dir);
+  return -1;
+}
+
+void kill_process(const char *process) {
+  int pid = getpidprocess(process);
+
+  if (pid > 1) {
+    if (kill(pid, SIGTERM) == 0) {
+      waitpid(pid, NULL, 0);
+      printf("Sent SIGTERM to process %d\n", pid);
+    } else {
+      perror("kill");
+    }
+  } else {
+    printf("Process '%s' not found\n", process);
+  }
 }
 
 void killclient(const Arg *arg) {
