@@ -106,6 +106,8 @@ enum {
   NetWMWindowTypeDock,
   NetSystemTrayOrientationHorz,
   NetClientList,
+  NetCloseWindow,
+  NetWMHidden,
   NetLast
 }; /* EWMH atoms */
 
@@ -938,9 +940,18 @@ void clientmessage(XEvent *e) {
                         || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */
                             && !c->isfullscreen)));
     }
+    if (cme->data.l[1] == netatom[NetWMHidden] ||
+        cme->data.l[2] == netatom[NetWMHidden]) {
+      XUnmapWindow(dpy, c->win);
+    }
   } else if (cme->message_type == netatom[NetActiveWindow]) {
     if (c != selmon->sel && !c->isurgent)
       seturgent(c, 1);
+  } else if (cme->message_type == netatom[NetCloseWindow]) {
+    killclient(&(Arg){.v = c});
+  } else if (cme->message_type == XInternAtom(dpy, "WM_CHANGE_STATE", False)) {
+    if (cme->data.l[0] == IconicState)
+      showhideclient(&(Arg){.v = c});
   }
 }
 
@@ -2425,6 +2436,8 @@ void setup(void) {
   netatom[NetWMCheck] = XInternAtom(dpy, "_NET_SUPPORTING_WM_CHECK", False);
   netatom[NetWMFullscreen] =
       XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False);
+  netatom[NetCloseWindow] = XInternAtom(dpy, "_NET_CLOSE_WINDOW", False);
+  netatom[NetWMHidden] = XInternAtom(dpy, "_NET_WM_STATE_HIDDEN", False);
   netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
   netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
   /* init cursors */
