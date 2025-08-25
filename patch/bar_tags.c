@@ -55,4 +55,8 @@ int click_tags(Bar *bar, Arg *arg, BarArg *a) {
   return ClkTagBar;
 }
 
-int hover_tags(Bar *bar, BarArg *a, XMotionEvent *ev) { return 1; }
+int hover_tags(Bar *bar, BarArg *a, XMotionEvent *ev) {
+  XDefineCursor(dpy, bar->win, cursor[CurPress]->cursor);
+  XFlush(dpy);
+  return 1;
+}

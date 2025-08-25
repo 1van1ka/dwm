@@ -77,7 +77,7 @@
 #define SPTAG(i) ((1 << NUMTAGS) << (i))
 #define SPTAGMASK (((1 << LENGTH(scratchpads)) - 1) << NUMTAGS)
 /* enums */
-enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
+enum { CurNormal, CurResize, CurMove, CurPress, CurLast }; /* cursor */
 
 enum {
   SchemeNorm,
@@ -2431,6 +2431,7 @@ void setup(void) {
   cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
   cursor[CurResize] = drw_cur_create(drw, XC_sizing);
   cursor[CurMove] = drw_cur_create(drw, XC_fleur);
+  cursor[CurPress] = drw_cur_create(drw, XC_hand2);
   /* init appearance */
   scheme = ecalloc(LENGTH(colors), sizeof(Clr *));
   for (i = 0; i < LENGTH(colors); i++)
@@ -2499,9 +2500,6 @@ void showhide(Client *c) {
 
 void spawn(const Arg *arg) {
   struct sigaction sa;
-
-  // if (arg->v == dmenucmd)
-  //   dmenumon[0] = '0' + selmon->num;
 
   if (fork() == 0) {
     if (dpy)
@@ -2685,7 +2683,8 @@ void updatebars(void) {
   Monitor *m;
   XSetWindowAttributes wa = {.override_redirect = True,
                              .background_pixmap = ParentRelative,
-                             .event_mask = ButtonPressMask | ExposureMask};
+                             .event_mask = ButtonPressMask | ExposureMask |
+                                           PointerMotionMask};
   XClassHint ch = {"dwm", "dwm"};
   for (m = mons; m; m = m->next) {
     for (bar = m->bar; bar; bar = bar->next) {

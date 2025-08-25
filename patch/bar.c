@@ -1,3 +1,4 @@
+#include <X11/Xlib.h>
 void
 barhover(XEvent *e, Bar *bar)
 {
@@ -9,12 +10,18 @@ barhover(XEvent *e, Bar *bar)
 
 	for (r = 0; r < LENGTH(barrules); r++) {
 		br = &barrules[r];
-		if (br->bar != bar->idx || (br->monitor == 'A' && m != selmon) || br->hoverfunc == NULL)
+		if (br->bar != bar->idx || (br->monitor == 'A' && m != selmon))
 			continue;
 		if (br->monitor != 'A' && br->monitor != -1 && br->monitor != bar->mon->num)
 			continue;
 		if (bar->x[r] > ev->x || ev->x > bar->x[r] + bar->w[r])
 			continue;
+
+    if (br->hoverfunc == NULL) {
+        XDefineCursor(dpy, bar->win, cursor[CurNormal]->cursor);
+        XFlush(dpy);
+        continue;
+    }
 
 		barg.x = ev->x - bar->x[r];
 		barg.y = ev->y - bar->borderpx;
