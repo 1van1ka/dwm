@@ -108,6 +108,8 @@ enum {
   NetSystemTrayOrientationHorz,
   NetClientList,
   NetCloseWindow,
+  NetMaxVert,
+  NetMaxHorz,
   NetWMHidden,
   NetLast
 }; /* EWMH atoms */
@@ -941,11 +943,22 @@ void clientmessage(XEvent *e) {
       setfullscreen(c, (cme->data.l[0] == 1     /* _NET_WM_STATE_ADD    */
                         || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */
                             && !c->isfullscreen)));
+      return;
+    } else if ((cme->data.l[1] == netatom[NetMaxVert] ||
+                cme->data.l[2] == netatom[NetMaxHorz] ||
+                cme->data.l[1] == netatom[NetMaxHorz] ||
+                cme->data.l[2] == netatom[NetMaxVert])) {
+      setfullscreen(c, (cme->data.l[0] == 1     /* _NET_WM_STATE_ADD */
+                        || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */
+                            && !c->isfullscreen)));
+      return;
     }
+
     if (cme->data.l[1] == netatom[NetWMHidden] ||
         cme->data.l[2] == netatom[NetWMHidden]) {
       XUnmapWindow(dpy, c->win);
     }
+
   } else if (cme->message_type == netatom[NetActiveWindow]) {
     if (c != selmon->sel && !c->isurgent)
       seturgent(c, 1);
@@ -2452,6 +2465,9 @@ void setup(void) {
   netatom[NetWMHidden] = XInternAtom(dpy, "_NET_WM_STATE_HIDDEN", False);
   netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
   netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
+  netatom[NetMaxVert] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_VERT", False);
+  netatom[NetMaxHorz] = XInternAtom(dpy, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
+
   /* init cursors */
   cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
   cursor[CurResize] = drw_cur_create(drw, XC_sizing);
