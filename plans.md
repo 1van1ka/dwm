@@ -1,6 +1,7 @@
 ### Future plans:
 - [x] Support autostart and autostop of applications
 - [ ] Support resizing from any corner
+- [ ] Support EWMH
 - [ ] GUI settings app for dwm
 - [ ] ~~Support cairo~~ (no minimal)
 - [ ] ~~Support for **Wayland**~~ (not planned)

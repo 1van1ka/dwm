@@ -412,8 +412,6 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[512];
-// static pid_t *autostart_pids;
-// static size_t autostart_len;
 
 static int screen;
 static int sw, sh; /* X display screen geometry width, height */
@@ -1344,6 +1342,8 @@ void enternotify(XEvent *e) {
   Monitor *m;
   XCrossingEvent *ev = &e->xcrossing;
 
+  if (!entermouse)
+    return;
   if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) &&
       ev->window != root)
     return;

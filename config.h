@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 static unsigned int resfreshrate         = 0;   /* 0 means auto refresh rate (per second) */
+static int entermouse                    = 0;
 static const unsigned int borderpx       = 3;   /* border pixel of windows */
 static const unsigned int border         = 0;   /* always display border: 1, auto display: 0 */
 static const unsigned int smartgaps_fact = 0;   /* gap factor when there is only one client; 0 = no gaps, 3 = 3x outer gaps */
