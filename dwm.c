@@ -25,6 +25,7 @@
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
+#include <X11/extensions/Xrandr.h>
 #include <X11/keysym.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -331,6 +332,7 @@ static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void focusviadmenu(const Arg *arg);
 static Atom getatomprop(Client *c, Atom prop, Atom req);
+static int getrefreshrate(void);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
@@ -1545,6 +1547,13 @@ Atom getatomprop(Client *c, Atom prop, Atom req) {
   return atom;
 }
 
+int getrefreshrate(void) {
+  XRRScreenConfiguration *conf = XRRGetScreenInfo(dpy, RootWindow(dpy, screen));
+  short rate = XRRConfigCurrentRate(conf);
+  XRRFreeScreenConfigInfo(conf);
+  return rate;
+}
+
 int getrootptr(int *x, int *y) {
   int di;
   unsigned int dui;
@@ -1897,7 +1906,7 @@ void movemouse(const Arg *arg) {
       handler[ev.type](&ev);
       break;
     case MotionNotify:
-      if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+      if ((ev.xmotion.time - lasttime) <= (1000 / resfreshrate))
         continue;
       lasttime = ev.xmotion.time;
 
@@ -2128,7 +2137,7 @@ void resizemouse(const Arg *arg) {
       handler[ev.type](&ev);
       break;
     case MotionNotify:
-      if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+      if ((ev.xmotion.time - lasttime) <= (1000 / resfreshrate))
         continue;
       lasttime = ev.xmotion.time;
 
@@ -2408,6 +2417,9 @@ void setup(void) {
   lrpad = drw->fonts->h;
   bh = drw->fonts->h + 2;
   updategeom();
+
+  resfreshrate = resfreshrate <= 0 ? getrefreshrate() : resfreshrate;
+
   /* init atoms */
   utf8string = XInternAtom(dpy, "UTF8_STRING", False);
   wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
