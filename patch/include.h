@@ -26,3 +26,5 @@
 /* Layouts */
 #include "layout_monocle.h"
 #include "layout_tile.h"
+#include "layout_deck.h"
+#include "layout_centered.h"

@@ -246,6 +246,14 @@ typedef struct {
 typedef struct {
   const char *symbol;
   void (*arrange)(Monitor *);
+  struct {
+    int using;
+    int noborder;
+  } border;
+  struct {
+    int using;
+    int usesg;
+  } gaps;
 } Layout;
 
 typedef struct Pertag Pertag;
@@ -289,8 +297,6 @@ typedef struct {
   int monitor;
 } Rule;
 
-#define RULE(...) {.monitor = -1, __VA_ARGS__},
-
 /* Cross patch compatibility rule macro helper macros */
 #define FLOATING , .isfloating = 1
 #define CENTERED
@@ -330,6 +336,7 @@ static void enternotify(XEvent *e);
 static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
+static void focusmaster(const Arg *arg);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void focusviadmenu(const Arg *arg);
@@ -712,96 +719,6 @@ void buttonpress(XEvent *e) {
                               buttons[i].arg.i == 0
                           ? &arg
                           : &buttons[i].arg);
-    }
-  }
-}
-void centeredmaster(Monitor *m) {
-  unsigned int i, n;
-  int mx = 0, my = 0, mh = 0, mw = 0;
-  int lx = 0, ly = 0, lw = 0, lh = 0;
-  int rx = 0, ry = 0, rw = 0, rh = 0;
-  float mfacts = 0, lfacts = 0, rfacts = 0;
-  int mtotal = 0, ltotal = 0, rtotal = 0;
-  int mrest = 0, lrest = 0, rrest = 0;
-  Client *c;
-
-  int oh, ov, ih, iv;
-  getgaps(m, &oh, &ov, &ih, &iv, &n);
-
-  if (n == 0)
-    return;
-
-  /* initialize areas */
-  mx = m->wx + ov;
-  my = m->wy + oh;
-  mh = m->wh - 2 * oh - ih * ((!m->nmaster ? n : MIN(n, m->nmaster)) - 1);
-  mw = m->ww - 2 * ov;
-  lh = m->wh - 2 * oh - ih * (((n - m->nmaster) / 2) - 1);
-  rh = m->wh - 2 * oh -
-       ih * (((n - m->nmaster) / 2) - ((n - m->nmaster) % 2 ? 0 : 1));
-
-  if (m->nmaster && n > m->nmaster) {
-    /* go mfact box in the center if more than nmaster clients */
-    if (n - m->nmaster > 1) {
-      /* ||<-S->|<---M--->|<-S->|| */
-      mw = (m->ww - 2 * ov - 2 * iv) * m->mfact;
-      lw = (m->ww - mw - 2 * ov - 2 * iv) / 2;
-      mx += lw + iv;
-    } else {
-      /* ||<---M--->|<-S->|| */
-      mw = (mw - iv) * m->mfact;
-      lw = m->ww - mw - iv - 2 * ov;
-    }
-    rw = lw;
-    lx = m->wx + ov;
-    ly = m->wy + oh;
-    rx = mx + mw + iv;
-    ry = m->wy + oh;
-  }
-
-  for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++) {
-    if (!m->nmaster || n < m->nmaster)
-      mfacts += 1;
-    else if ((n - m->nmaster) % 2)
-      lfacts += 1; // total factor of left hand stack area
-    else
-      rfacts += 1; // total factor of right hand stack area
-  }
-
-  for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++)
-    if (!m->nmaster || n < m->nmaster)
-      mtotal += mh / mfacts;
-    else if ((n - m->nmaster) % 2)
-      ltotal += lh / lfacts;
-    else
-      rtotal += rh / rfacts;
-
-  mrest = mh - mtotal;
-  lrest = lh - ltotal;
-  rrest = rh - rtotal;
-
-  for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
-    if (!m->nmaster || i < m->nmaster) {
-      /* nmaster clients are stacked vertically, in the center of the screen
-       */
-      resize(c, mx, my, mw - (2 * c->bw),
-             (mh / mfacts) + (i < mrest ? 1 : 0) - (2 * c->bw), 0);
-      my += HEIGHT(c) + ih;
-    } else {
-      /* stack clients are stacked vertically */
-      if ((i - m->nmaster) % 2) {
-        resize(c, lx, ly, lw - (2 * c->bw),
-               (lh / lfacts) + ((i - 2 * m->nmaster) < 2 * lrest ? 1 : 0) -
-                   (2 * c->bw),
-               0);
-        ly += HEIGHT(c) + ih;
-      } else {
-        resize(c, rx, ry, rw - (2 * c->bw),
-               (rh / rfacts) + ((i - 2 * m->nmaster) < 2 * rrest ? 1 : 0) -
-                   (2 * c->bw),
-               0);
-        ry += HEIGHT(c) + ih;
-      }
     }
   }
 }
@@ -1201,11 +1118,8 @@ Monitor *dirtomon(int dir) {
 }
 
 void drawbar(Monitor *m) {
-  Bar *bar;
-
   if (m->showbar)
-    for (bar = m->bar; bar; bar = bar->next)
-      drawbarwin(bar);
+    drawbarwin(m->bar);
 }
 
 void drawbars(void) {
@@ -1399,6 +1313,20 @@ void focusin(XEvent *e) {
 
   if (selmon->sel && ev->window != selmon->sel->win)
     setfocus(selmon->sel);
+}
+
+void focusmaster(const Arg *arg) {
+  Client *c;
+
+  if (selmon->nmaster < 1)
+    return;
+  if (!selmon->sel || (selmon->sel->isfullscreen && lockfullscreen))
+    return;
+
+  c = nexttiled(selmon->clients);
+
+  if (c)
+    focus(c);
 }
 
 void focusmon(const Arg *arg) {
@@ -2001,25 +1929,15 @@ Client *nexttiled(Client *c) {
 }
 
 int noborder(Client *c) {
-  if (border)
+  if (c->isfloating || c->isfullscreen)
     return 0;
 
-  int monocle_layout = 0;
+  if (!c->mon->lt[c->mon->sellt]->border.using)
+    return 1;
 
-  if (&monocle == c->mon->lt[c->mon->sellt]->arrange)
-    monocle_layout = 1;
-
-  if (!monocle_layout &&
-      (nexttiled(c->mon->clients) != c || nexttiled(c->next)))
+  if (c->mon->lt[c->mon->sellt]->border.noborder)
     return 0;
-
-  if (c->isfloating)
-    return 0;
-
-  if (!c->mon->lt[c->mon->sellt]->arrange)
-    return 0;
-
-  if (c->isfullscreen)
+  else if (nexttiled(c->mon->clients) != c || nexttiled(c->next))
     return 0;
 
   return 1;
@@ -2292,8 +2210,8 @@ void sendmon(Client *c, Monitor *m) {
     c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
   attach(c);
   attachstack(c);
-  arrange(NULL);
-  focus(NULL);
+  // arrange(NULL);
+  // focus(NULL);
 }
 
 void setclientstate(Client *c, long state) {

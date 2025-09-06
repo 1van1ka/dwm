@@ -28,6 +28,9 @@ tile(Monitor *m)
 
 	getfacts(m, mh, sh, &mfacts, &sfacts, &mrest, &srest);
 
+  if (n - m->nmaster > 0) /* override layout symbol */
+    snprintf(m->ltsymbol, sizeof m->ltsymbol, "[]%d", n - m->nmaster);
+
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
 			resize(c, mx, my, mw - (2*c->bw), (mh / mfacts) + (i < mrest ? 1 : 0) - (2*c->bw), 0);

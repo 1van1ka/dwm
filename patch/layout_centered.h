@@ -1,0 +1,1 @@
+void centeredmaster(Monitor *m);

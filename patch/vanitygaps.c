@@ -112,12 +112,12 @@ static void
 getgaps(Monitor *m, int *oh, int *ov, int *ih, int *iv, unsigned int *nc)
 {
 	unsigned int n, oe, ie;
-	oe = ie = m->pertag->enablegaps[m->pertag->curtag];
+	oe = ie = m->pertag->enablegaps[m->pertag->curtag] * m->lt[m->sellt]->gaps.using;
 	Client *c;
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
 	if (n == 1) {
-		oe *= smartgaps_fact; // outer gaps disabled or multiplied when only one client
+		oe *= m->lt[m->sellt]->gaps.usesg; // outer gaps disabled or multiplied when only one client
 	}
 
 	*oh = m->gappoh*oe; // outer horizontal gap

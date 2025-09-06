@@ -29,3 +29,5 @@
 #include "layout_facts.c"
 #include "layout_monocle.c"
 #include "layout_tile.c"
+#include "layout_deck.c"
+#include "layout_centered.c"
