@@ -17,6 +17,7 @@ static const int showbar                 = 1;   /* 0 means no bar */
 static const int topbar                  = 1;   /* 0 means bottom bar */
 static const int topline                 = 1;   /* 0 means bottom line active window */
 static const int padding_y_bar           = 0;
+static const int padding_x_bar           = 0;
 static const int barwidth                = 0;
 static const int barheight               = 24;
 static const int lineheight              = 4;

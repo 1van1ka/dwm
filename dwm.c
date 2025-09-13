@@ -221,14 +221,13 @@ struct Client {
   float mina, maxa;
   float cfact;
   int x, y, w, h;
-  int winh, winw;
   unsigned int idx;
   int oldx, oldy, oldw, oldh;
   int basew, baseh, incw, inch, maxw, maxh, minw, minh, hintsvalid;
   int bw, oldbw;
   unsigned int tags;
   int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen,
-      iscentered, isscratchpad;
+      isscratchpad;
   Client *next;
   Client *snext;
   Monitor *mon;
@@ -491,9 +490,6 @@ void applyrules(Client *c) {
         (!r->class || strstr(class, r->class)) &&
         (!r->instance || strstr(instance, r->instance)) &&
         (!r->wintype || wintype == XInternAtom(dpy, r->wintype, False))) {
-      c->winh = r->height;
-      c->winw = r->width;
-      c->iscentered = r->iscentered;
 
       if (r->isfloating) {
         c->isfloating = 1;
@@ -507,16 +503,6 @@ void applyrules(Client *c) {
           c->y =
               r->y > 0 ? r->y : c->mon->wy + (c->mon->wh / 2 - HEIGHT(c) / 2);
           c->isscratchpad = 1;
-        } else {
-          c->y = (c->mon->mh - HEIGHT(c));
-          c->x = (c->mon->mw - WIDTH(c));
-          if (c->iscentered) {
-            c->x /= 2;
-            c->y /= 2;
-          } else {
-            c->x = r->x > 0 ? r->x : c->x / 2;
-            c->y = r->y > 0 ? r->y : c->y / 1.15;
-          }
         }
       }
       c->tags = r->tags;
@@ -1723,10 +1709,16 @@ void manage(Window w, XWindowAttributes *wa) {
       applyrules(c);
   }
 
-  if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
-    c->x = c->mon->wx + c->mon->ww - WIDTH(c);
-  if (c->y + HEIGHT(c) > c->mon->wy + c->mon->wh)
-    c->y = c->mon->wy + c->mon->wh - HEIGHT(c);
+  if ((c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) && !c->isscratchpad) {
+    c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
+    c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
+  } else {
+    if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
+      c->x = c->mon->wx + c->mon->ww - WIDTH(c);
+    if (c->y + HEIGHT(c) > c->mon->wy + c->mon->wh)
+      c->y = c->mon->wy + c->mon->wh - HEIGHT(c);
+  }
+
   c->x = MAX(c->x, c->mon->wx);
   c->y = MAX(c->y, c->mon->wy);
 
@@ -1889,8 +1881,9 @@ void movecenter(const Arg *arg) {
   if (selmon->sel) {
     selmon->sel->x =
         selmon->sel->mon->mx + (selmon->sel->mon->mw - WIDTH(selmon->sel)) / 2;
-    selmon->sel->y =
-        selmon->sel->mon->my + (selmon->sel->mon->mh - HEIGHT(selmon->sel)) / 2;
+    selmon->sel->y = selmon->sel->mon->my +
+                     (selmon->sel->mon->mh - HEIGHT(selmon->sel)) / 2 +
+                     selmon->bar->bh / 2;
     arrange(selmon);
   }
 }
@@ -2670,8 +2663,8 @@ void updatebarpos(Monitor *m) {
   m->wh = m->mh;
   Bar *bar;
 
-  int y_pad = padding_y_bar > 0 ? padding_y_bar : 0;
-  int x_pad = 0;
+  int y_pad = MAX(padding_y_bar, 0);
+  int x_pad = MAX(padding_x_bar, 0);
 
   for (bar = m->bar; bar; bar = bar->next) {
     bar->bw = barwidth ? MIN(barwidth, m->ww - 2 * x_pad) : m->ww - 2 * x_pad;
